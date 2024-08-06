@@ -164,7 +164,7 @@ class Actor(Generic[P, R]):
             delay = int(delay.total_seconds() * 1000)
 
         message = self.message_with_options(args=args, kwargs=kwargs, **options)
-        return self.broker.enqueue(message, delay=delay)
+        return self.broker.enqueue(message, delay=delay, priority=options.get("priority", self.priority) or None)
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """Synchronously call this actor.

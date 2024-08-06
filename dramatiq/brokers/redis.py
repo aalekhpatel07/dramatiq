@@ -151,13 +151,16 @@ class RedisBroker(Broker):
             self.delay_queues.add(delayed_name)
             self.emit_after("declare_delay_queue", delayed_name)
 
-    def enqueue(self, message, *, delay=None):
+    def enqueue(self, message, *, delay=None, priority=None):
         """Enqueue a message.
 
         Parameters:
           message(Message): The message to enqueue.
           delay(int): The minimum amount of time, in milliseconds, to
             delay the message by.  Must be less than 7 days.
+         priority(int): If provided, a rank to indicate when should this message
+            be processed by a worker relative to other messages in the queue. The lower
+            the value (above 0) the sooner the task will be scheduled compared to other tasks.
 
         Raises:
           ValueError: If ``delay`` is longer than 7 days.
@@ -181,9 +184,9 @@ class RedisBroker(Broker):
                 },
             )
 
-        self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
+        self.logger.debug("Enqueueing message %r on queue %r (priority: %r).", message.message_id, queue_name, priority or 0)
         self.emit_before("enqueue", message, delay)
-        self.do_enqueue(queue_name, message.options["redis_message_id"], message.encode())
+        self.do_enqueue(queue_name, message.options["redis_message_id"], message.encode(), priority)
         self.emit_after("enqueue", message, delay)
         return message
 

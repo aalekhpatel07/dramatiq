@@ -117,7 +117,8 @@ if do_maintenance == "1" then
         if next(message_ids) then
             for _, message_id in ipairs(message_ids) do
                 if redis.call("hexists", queue_messages, message_id) > 0 then
-                    redis.call("rpush", queue_full_name, message_id)
+                    local message_priority = redis.call("hget", queue_messages, ".priority." .. message_id)
+                    redis.call("zadd", queue_full_name, message_priority, message_id)
                 end
             end
             redis.call("del", dead_worker_queue_acks)
@@ -157,9 +158,11 @@ end
 if command == "enqueue" then
     local message_id = ARGS[1]
     local message_data = ARGS[2]
+    local message_priority = ARGS[3]
 
     redis.call("hset", queue_messages, message_id, message_data)
-    redis.call("rpush", queue_full_name, message_id)
+    redis.call("hset", queue_messages, ".priority." .. message_id, message_priority)
+    redis.call("zadd", queue_full_name, message_priority, message_id)
 
 
 -- Returns up to $prefetch number of messages from $queue_full_name.
@@ -169,10 +172,16 @@ elseif command == "fetch" then
 
     local message_ids = {}
     for i=1,prefetch do
-        local message_id = redis.call("lpop", queue_full_name)
-        if not message_id then
+        local message_id_and_priority = redis.call("zpopmin", queue_full_name)
+        if message_id_and_priority == nil then
             break
         end
+        if type(next(message_id_and_priority)) == "nil" then
+            break
+        end
+
+        local message_id = message_id_and_priority[1]
+        local message_priority = message_id_and_priority[2]
 
         message_ids[i] = message_id
         redis.call("sadd", queue_acks, message_id)
@@ -190,10 +199,11 @@ elseif command == "fetch" then
 elseif command == "requeue" then
     for i=1,#ARGS do
         local message_id = ARGS[i]
+        local message_priority = redis.call("hget", queue_messages, ".priority." .. message_id)
 
         if redis.call("srem", queue_acks, message_id) > 0 then
             if redis.call("hexists", queue_messages, message_id) > 0 then
-                redis.call("rpush", queue_full_name, message_id)
+                redis.call("zadd", queue_full_name, message_priority, message_id)
             end
         end
     end
@@ -205,6 +215,7 @@ elseif command == "ack" then
 
     if redis.call("srem", queue_acks, message_id) > 0 then
         redis.call("hdel", queue_messages, message_id)
+        redis.call("hdel", queue_messages, ".priority." .. message_id)
     end
 
 
