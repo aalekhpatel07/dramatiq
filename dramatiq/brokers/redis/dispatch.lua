@@ -159,7 +159,6 @@ if command == "enqueue" then
     local message_id = ARGS[1]
     local message_data = ARGS[2]
     local message_priority = ARGS[3]
-    redis.log(redis.LOG_DEBUG, "Enqueing message with priority " .. message_priority .. " on " .. queue_full_name)
 
     redis.call("hset", queue_messages, message_id, message_data)
     redis.call("hset", queue_messages, ".priority." .. message_id, message_priority)
