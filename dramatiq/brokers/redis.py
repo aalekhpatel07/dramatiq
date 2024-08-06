@@ -151,7 +151,7 @@ class RedisBroker(Broker):
             self.delay_queues.add(delayed_name)
             self.emit_after("declare_delay_queue", delayed_name)
 
-    def enqueue(self, message, *, delay=None):
+    def enqueue(self, message, *, delay=None, priority):
         """Enqueue a message.
 
         Parameters:
@@ -181,9 +181,9 @@ class RedisBroker(Broker):
                 },
             )
 
-        self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
+        self.logger.debug("Enqueueing message %r on queue %r (priority: %r).", message.message_id, queue_name, priority or 0)
         self.emit_before("enqueue", message, delay)
-        self.do_enqueue(queue_name, message.options["redis_message_id"], message.encode())
+        self.do_enqueue(queue_name, message.options["redis_message_id"], message.encode(), priority)
         self.emit_after("enqueue", message, delay)
         return message
 
